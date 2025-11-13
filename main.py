@@ -1,13 +1,15 @@
 import os
 from typing import List, Optional, Any, Dict
-from fastapi import FastAPI, HTTPException, Query, Header, Depends
+from fastapi import FastAPI, HTTPException, Query, Header, Depends, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, EmailStr
 from bson import ObjectId
 from datetime import datetime
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from uuid import uuid4
 
 from database import db, create_document, get_documents
 from schemas import Trek, BlogPost, Inquiry, AdminUser
@@ -21,6 +23,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Ensure uploads directory exists and mount static serving
+UPLOAD_ROOT = os.path.abspath("uploads")
+os.makedirs(UPLOAD_ROOT, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=UPLOAD_ROOT), name="uploads")
 
 # -------------------- Helpers --------------------
 class IdResponse(BaseModel):
@@ -107,6 +114,30 @@ def get_schema_definitions():
         "inquiry": Inquiry.model_json_schema(),
         "adminuser": AdminUser.model_json_schema(),
     }
+
+
+# -------------------- File Uploads --------------------
+@app.post("/api/upload")
+def upload_file(folder: Optional[str] = Query(default="misc"), file: UploadFile = File(...), _: bool = Depends(require_admin)):
+    # Sanitize folder name to avoid path traversal
+    safe_folder = "".join(ch for ch in (folder or "misc") if ch.isalnum() or ch in ("-", "_")) or "misc"
+    target_dir = os.path.join(UPLOAD_ROOT, safe_folder)
+    os.makedirs(target_dir, exist_ok=True)
+
+    # Generate safe unique filename with original extension
+    _, ext = os.path.splitext(file.filename or "")
+    ext = (ext or "").lower()
+    if len(ext) > 10:
+        ext = ext[:10]
+    unique_name = f"{uuid4().hex}{ext}"
+    target_path = os.path.join(target_dir, unique_name)
+
+    # Save file to disk
+    with open(target_path, "wb") as f:
+        f.write(file.file.read())
+
+    public_path = f"/uploads/{safe_folder}/{unique_name}"
+    return {"path": public_path}
 
 
 # -------------------- Treks --------------------
