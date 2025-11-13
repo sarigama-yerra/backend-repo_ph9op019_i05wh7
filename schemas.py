@@ -1,48 +1,55 @@
 """
-Database Schemas
+Database Schemas for Juma Trek
 
-Define your MongoDB collection schemas here using Pydantic models.
-These schemas are used for data validation in your application.
-
-Each Pydantic model represents a collection in your database.
-Model name is converted to lowercase for the collection name:
-- User -> "user" collection
-- Product -> "product" collection
-- BlogPost -> "blogs" collection
+Each Pydantic model maps to a MongoDB collection (lowercased class name).
+- Trek -> "trek"
+- BlogPost -> "blogpost"
+- Inquiry -> "inquiry"
+- AdminUser -> "adminuser"
 """
 
-from pydantic import BaseModel, Field
-from typing import Optional
+from typing import List, Optional
+from pydantic import BaseModel, Field, EmailStr
+from datetime import date
 
-# Example schemas (replace with your own):
+class Trek(BaseModel):
+    title: str = Field(..., description="Trek title")
+    slug: Optional[str] = Field(None, description="URL-friendly slug")
+    region: str = Field(..., description="Geographic region")
+    difficulty: str = Field(..., description="Difficulty level: Easy/Moderate/Challenging")
+    duration_days: int = Field(..., ge=1, description="Total duration in days")
+    price_usd: float = Field(..., ge=0, description="Starting price in USD")
+    max_altitude_m: Optional[int] = Field(None, ge=0, description="Maximum altitude in meters")
+    highlights: List[str] = Field(default_factory=list, description="Key highlights bullets")
+    overview: str = Field(..., description="Short overview")
+    itinerary: List[str] = Field(default_factory=list, description="Day-wise itinerary")
+    inclusions: List[str] = Field(default_factory=list)
+    exclusions: List[str] = Field(default_factory=list)
+    images: List[str] = Field(default_factory=list, description="Image URLs")
+    is_featured: bool = Field(False, description="Show on homepage")
 
-class User(BaseModel):
-    """
-    Users collection schema
-    Collection name: "user" (lowercase of class name)
-    """
-    name: str = Field(..., description="Full name")
-    email: str = Field(..., description="Email address")
-    address: str = Field(..., description="Address")
-    age: Optional[int] = Field(None, ge=0, le=120, description="Age in years")
-    is_active: bool = Field(True, description="Whether user is active")
+class BlogPost(BaseModel):
+    title: str
+    slug: Optional[str] = None
+    excerpt: Optional[str] = None
+    content: str
+    cover_image: Optional[str] = None
+    tags: List[str] = Field(default_factory=list)
+    published: bool = True
+    published_on: Optional[date] = None
 
-class Product(BaseModel):
-    """
-    Products collection schema
-    Collection name: "product" (lowercase of class name)
-    """
-    title: str = Field(..., description="Product title")
-    description: Optional[str] = Field(None, description="Product description")
-    price: float = Field(..., ge=0, description="Price in dollars")
-    category: str = Field(..., description="Product category")
-    in_stock: bool = Field(True, description="Whether product is in stock")
+class Inquiry(BaseModel):
+    name: str
+    email: EmailStr
+    trek_id: Optional[str] = Field(None, description="Optional trek id of interest")
+    subject: Optional[str] = None
+    message: str
+    preferred_start_date: Optional[date] = None
+    travelers: Optional[int] = Field(default=1, ge=1)
 
-# Add your own schemas here:
-# --------------------------------------------------
-
-# Note: The Flames database viewer will automatically:
-# 1. Read these schemas from GET /schema endpoint
-# 2. Use them for document validation when creating/editing
-# 3. Handle all database operations (CRUD) directly
-# 4. You don't need to create any database endpoints!
+class AdminUser(BaseModel):
+    email: EmailStr
+    password_hash: str
+    password_salt: str
+    full_name: Optional[str] = None
+    role: str = Field(default="admin")
